@@ -6,7 +6,7 @@ const embedded = new URLSearchParams(location.search).has("embedded");
 
 function closePanel() {
   if (embedded) parent.postMessage({ unpin: "close" }, "*");
-  else closePanel();
+  else window.close();
 }
 
 if (embedded) {
@@ -36,20 +36,26 @@ async function boardInfo() {
       credentials: "include",
       headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest", "X-Pinterest-PWS-Handler": "www/[username]/[slug].js" },
     });
-    const body = (await res.json()).resource_response;
-    if (!res.ok || body.error) throw new Error(body.error ? body.error.message_detail || body.error.message : `HTTP ${res.status}`);
+    let body = null;
+    try { body = (await res.json()).resource_response; } catch (_) {}
+    if (!res.ok || !body || body.error) throw new Error(body && body.error ? body.error.message_detail || body.error.message : `HTTP ${res.status}`);
     return body;
   };
   try {
     const board = (await get("BoardResource", { username, slug, field_set_key: "detailed" })).data;
     const sections = [];
     let bookmark = null;
+    const seenBookmarks = new Set();
     do {
       const opts = { board_id: board.id, page_size: 50 };
       if (bookmark) opts.bookmarks = [bookmark];
       const r = await get("BoardSectionsResource", opts);
       sections.push(...(r.data || []).map((x) => ({ title: x.title, slug: x.slug, count: x.pin_count || 0 })));
       bookmark = r.bookmark;
+      if (bookmark) {
+        if (seenBookmarks.has(bookmark)) break;
+        seenBookmarks.add(bookmark);
+      }
     } while (bookmark && bookmark !== "-end-");
     const section = sectionSlug ? sections.find((x) => x.slug === sectionSlug) : null;
     return {
@@ -84,8 +90,8 @@ async function boardInfo() {
 // chrome.scripting.executeScript, so it cannot reference anything outside itself.
 async function collectBoardImages() {
   const parts = location.pathname.split("/").filter(Boolean);
-  const reserved = new Set(["pin", "search", "ideas", "today", "settings", "business", "_"]);
-  if (parts.length < 2 || reserved.has(parts[0])) {
+  const reserved = new Set(["pin", "search", "ideas", "today", "settings", "business", "_", "videos", "shopping"]);
+  if (parts.length < 2 || reserved.has(parts[0]) || parts[1].startsWith("_")) {
     return { error: "Open a board first (a URL like pinterest.com/username/board-name/)." };
   }
   const [username, slug, sectionSlug] = parts;
@@ -116,6 +122,7 @@ async function collectBoardImages() {
   async function paginate(name, options) {
     const out = [];
     let bookmark = null;
+    const seenBookmarks = new Set();
     for (let page = 0; page < 500; page++) {
       // Pinterest rejects page_size above 50 on section pins ("250 > 50"),
       // and a rejected page aborts the whole board.
@@ -124,7 +131,8 @@ async function collectBoardImages() {
       const r = await resource(name, opts);
       if (Array.isArray(r.data)) out.push(...r.data);
       bookmark = r.bookmark;
-      if (!bookmark || bookmark === "-end-") break;
+      if (!bookmark || bookmark === "-end-" || seenBookmarks.has(bookmark)) break;
+      seenBookmarks.add(bookmark);
     }
     return out;
   }
@@ -185,7 +193,7 @@ async function collectBoardImages() {
     if (domain && !text.toLowerCase().includes(site)) parts.push(domain);
     if (!parts.length) {
       const date = pin.created_at && new Date(pin.created_at);
-      parts.push(date && !isNaN(date) ? `Pinned ${date.toISOString().slice(0, 10)}` : "Pin");
+      parts.push(date && !isNaN(date.getTime()) ? `Pinned ${date.toISOString().slice(0, 10)}` : "Pin");
     }
     return parts.join(" - ");
   }
@@ -236,6 +244,11 @@ async function collectBoardImages() {
   } catch (e) {
     apiError = e.message;
     console.warn("[board downloader] API path failed, falling back to scrolling:", e);
+    // Reset state before fallback so partially collected items don't pollute scroll harvesting
+    items.length = 0;
+    seen.clear();
+    seenPins.clear();
+    dupes = 0;
   }
 
   // Fallback: scroll the page and harvest what the grid renders. The grid is
@@ -378,7 +391,7 @@ function renderDone(state) {
 
   $("done-path").textContent = `Downloads/${state.folder}`;
   $("reveal").textContent = isMac ? "Show in Finder" : "Show in folder";
-  $("reveal").hidden = !state.lastId;
+  $("reveal").hidden = false;
 }
 
 async function poll() {
