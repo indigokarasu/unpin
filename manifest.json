@@ -6,7 +6,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "downloads"
+    "downloads",
+    "storage"
   ],
   "icons": {
     "16": "icons/icon-16.png",
@@ -33,7 +34,24 @@
         "icons/*"
       ],
       "matches": [
-        "https://*/*"
+        "https://*.pinterest.com/*",
+        "https://*.pinterest.ca/*",
+        "https://*.pinterest.co.uk/*",
+        "https://*.pinterest.de/*",
+        "https://*.pinterest.fr/*",
+        "https://*.pinterest.it/*",
+        "https://*.pinterest.es/*",
+        "https://*.pinterest.jp/*",
+        "https://*.pinterest.at/*",
+        "https://*.pinterest.ch/*",
+        "https://*.pinterest.dk/*",
+        "https://*.pinterest.cl/*",
+        "https://*.pinterest.co.kr/*",
+        "https://*.pinterest.com.au/*",
+        "https://*.pinterest.com.mx/*",
+        "https://*.pinterest.nz/*",
+        "https://*.pinterest.pt/*",
+        "https://*.pinterest.se/*"
       ]
     }
   ]
