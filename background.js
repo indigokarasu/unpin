@@ -10,15 +10,33 @@ const pending = new Map(); // downloadId -> job
 
 function saveState() {
   if (chrome.storage && chrome.storage.session) {
-    chrome.storage.session.set({ state }).catch(() => {});
+    chrome.storage.session.set({
+      state,
+      queue,
+      generation,
+      active,
+      pendingEntries: Array.from(pending.entries()),
+    }).catch(() => {});
   }
 }
 
 // Restore persisted state if service worker restarted
 if (chrome.storage && chrome.storage.session) {
-  chrome.storage.session.get("state").then((res) => {
-    if (res && res.state) {
-      state = { ...res.state, running: false };
+  chrome.storage.session.get(["state", "queue", "generation", "active", "pendingEntries"]).then((res) => {
+    if (res) {
+      if (res.state) state = res.state;
+      if (Array.isArray(res.queue)) queue = res.queue;
+      if (typeof res.generation === "number") generation = res.generation;
+      if (typeof res.active === "number") active = res.active;
+      if (Array.isArray(res.pendingEntries)) {
+        pending.clear();
+        for (const [id, job] of res.pendingEntries) {
+          pending.set(id, job);
+        }
+      }
+      if (state.running) {
+        pump();
+      }
     }
   }).catch(() => {});
 }
@@ -93,6 +111,7 @@ async function start(job) {
         return;
       }
       pending.set(id, job);
+      saveState();
     }
   );
 }
@@ -139,6 +158,7 @@ chrome.downloads.onChanged.addListener((delta) => {
   if (delta.state.current === "complete") {
     pending.delete(delta.id);
     state.lastId = delta.id;
+    saveState();
     finish(job, true);
   } else if (delta.state.current === "interrupted") {
     pending.delete(delta.id);
@@ -147,6 +167,7 @@ chrome.downloads.onChanged.addListener((delta) => {
         if (chrome.runtime.lastError) {}
       });
     } catch (_) {}
+    saveState();
     finish(job, false);
   }
 });
