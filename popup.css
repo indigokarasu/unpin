@@ -99,6 +99,8 @@ p { margin: 0; }
   margin: 16px 0 0;
   padding: 0;
   list-style: none;
+  max-height: 120px;
+  overflow-y: auto;
 }
 .chips li {
   padding: 6px 12px;
