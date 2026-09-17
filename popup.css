@@ -1,0 +1,203 @@
+/* Pinterest's visual language: pill buttons, 16px-radius cards, soft gray
+   fills instead of borders, heavy headings, and a lot of air. */
+
+:root {
+  --red: #e60023;
+  --red-hover: #cc001f;
+  --red-press: #ad081b;
+  --text: #111111;
+  --subtle: #62625b;
+  --fill: #e9e9e9;
+  --fill-hover: #dadada;
+  --bg: #ffffff;
+  --skeleton: #efefef;
+  --ok: #0a8a44;
+  --radius-card: 16px;
+  --radius-pill: 999px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #efefef;
+    --subtle: #a5a5a5;
+    --fill: #333333;
+    --fill-hover: #414141;
+    --bg: #111111;
+    --skeleton: #262626;
+    --ok: #3ccf7e;
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* The rounding, the 5px drop and the shadow belong to the floating panel
+   (panel.js). Chrome's own popup window can't have any of them, so when this
+   page is shown there it is simply square. */
+html { margin: 0; background: var(--bg); }
+html.embedded { background: transparent; }
+
+body {
+  margin: 0;
+  width: 340px;
+  padding: 20px 24px 24px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Pinterest Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.view { display: none; }
+body[data-view="loading"] [data-for="loading"],
+body[data-view="nowhere"] [data-for="nowhere"],
+body[data-view="board"]   [data-for="board"],
+body[data-view="done"]    [data-for="done"] { display: block; }
+
+h1 {
+  margin: 16px 0 4px;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  overflow-wrap: anywhere;
+}
+
+p { margin: 0; }
+.meta { color: var(--subtle); }
+
+/* Board cover: the board's own collage, as Pinterest shows it. */
+.cover {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  height: 164px;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--fill);
+}
+.cover[hidden] { display: none; }
+.cover > div { background: var(--fill) center / cover no-repeat; }
+.cover > div:first-child { grid-row: 1 / 3; }
+.cover[data-count="1"] > div:first-child { grid-column: 1 / 3; }
+.cover[data-count="2"] > div:nth-child(2) { grid-row: 1 / 3; }
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.chips li {
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chips li span { color: var(--subtle); font-weight: 400; margin-left: 4px; }
+
+.actions { display: flex; gap: 8px; margin-top: 24px; }
+
+.btn {
+  flex: 1;
+  height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible { outline: 3px solid #0074e8; outline-offset: 2px; }
+.btn.primary { background: var(--red); color: #fff; }
+.btn.primary:hover { background: var(--red-hover); }
+.btn.primary:active { background: var(--red-press); }
+.btn.secondary { flex: 0 0 auto; background: var(--fill); color: var(--text); }
+.btn.secondary:hover { background: var(--fill-hover); }
+.btn:disabled { cursor: default; transform: none; background: var(--fill); color: var(--subtle); }
+
+.progress { margin-top: 24px; }
+.track { display: flex; gap: 3px; height: 8px; }
+.segment {
+  flex: 1 1 0;
+  min-width: 6px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+/* Only the ends of the whole bar are pill-shaped. */
+.segment:first-child { border-radius: var(--radius-pill) 2px 2px var(--radius-pill); }
+.segment:last-child { border-radius: 2px var(--radius-pill) var(--radius-pill) 2px; }
+.segment:only-child { border-radius: var(--radius-pill); }
+.fill {
+  height: 100%;
+  width: 0;
+  background: var(--red);
+  transition: width 300ms ease;
+}
+.progress .meta { margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+.error {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* Empty and finished states are centred, like Pinterest's own. */
+.empty, .done { text-align: center; padding: 12px 8px 0; }
+.empty p { color: var(--subtle); margin: 0 auto; max-width: 250px; }
+.empty-mark { display: flex; justify-content: center; margin-top: 8px; }
+.empty h1 { font-size: 20px; margin-top: 20px; }
+
+.done .meta { margin-top: 4px; white-space: pre-line; }
+.done h1 { margin-top: 20px; }
+
+.check {
+  width: 56px;
+  height: 56px;
+  margin: 4px auto 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.done .path {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--fill);
+  color: var(--subtle);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.skeleton { background: var(--skeleton); animation: pulse 1.2s ease-in-out infinite; }
+.line { height: 20px; border-radius: 8px; margin-top: 16px; }
+.line.short { height: 14px; margin-top: 10px; }
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton, .fill, .btn { animation: none; transition: none; }
+}
