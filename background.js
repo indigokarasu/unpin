@@ -8,6 +8,39 @@ let active = 0;
 let generation = 0;
 const pending = new Map(); // downloadId -> job
 
+function saveState() {
+  if (chrome.storage && chrome.storage.session) {
+    chrome.storage.session.set({
+      state,
+      queue,
+      generation,
+      active,
+      pendingEntries: Array.from(pending.entries()),
+    }).catch(() => {});
+  }
+}
+
+// Restore persisted state if service worker restarted
+if (chrome.storage && chrome.storage.session) {
+  chrome.storage.session.get(["state", "queue", "generation", "active", "pendingEntries"]).then((res) => {
+    if (res) {
+      if (res.state) state = res.state;
+      if (Array.isArray(res.queue)) queue = res.queue;
+      if (typeof res.generation === "number") generation = res.generation;
+      if (typeof res.active === "number") active = res.active;
+      if (Array.isArray(res.pendingEntries)) {
+        pending.clear();
+        for (const [id, job] of res.pendingEntries) {
+          pending.set(id, job);
+        }
+      }
+      if (state.running) {
+        pump();
+      }
+    }
+  }).catch(() => {});
+}
+
 // Chrome rejects a download whose path has characters the OS forbids, a
 // leading or trailing dot or space, or a Windows device name.
 function safeName(s, fallback) {
@@ -32,10 +65,10 @@ function extOf(url) {
 // which were named by the full hash alone.
 async function alreadyOnDisk(job) {
   const hits = await chrome.downloads.search({ query: [job.short], state: "complete", exists: true });
-  const folder = job.filename.slice(0, job.filename.lastIndexOf("/") + 1);
+  const folder = job.filename.slice(0, job.filename.lastIndexOf("/") + 1).toLowerCase();
   const named = new RegExp(`(^| - )${job.short}[0-9a-f]*\\.[a-z0-9]+$`, "i");
   return hits.some((h) => {
-    const path = h.filename.replace(/\\/g, "/");
+    const path = h.filename.replace(/\\/g, "/").toLowerCase();
     const cut = path.lastIndexOf("/") + 1;
     return path.slice(0, cut).endsWith(folder) && named.test(path.slice(cut));
   });
@@ -50,21 +83,35 @@ function fileName(item) {
 }
 
 async function start(job) {
-  if (job.generation !== generation) return; // stopped while this was queued
+  if (job.generation !== generation) {
+    active--;
+    settle();
+    return;
+  }
   const onDisk = await alreadyOnDisk(job);
-  if (job.generation !== generation) return;
+  if (job.generation !== generation) {
+    active--;
+    settle();
+    return;
+  }
   if (onDisk) {
     active--;
     state.skipped++;
     tick(job);
+    saveState();
     return pump();
   }
   chrome.downloads.download(
     { url: job.url, filename: job.filename, conflictAction: "uniquify", saveAs: false },
     (id) => {
       if (chrome.runtime.lastError || id === undefined) return finish(job, false);
-      if (job.generation !== generation) return chrome.downloads.cancel(id);
+      if (job.generation !== generation) {
+        chrome.downloads.cancel(id);
+        finish(job, false);
+        return;
+      }
       pending.set(id, job);
+      saveState();
     }
   );
 }
@@ -102,6 +149,7 @@ function tick(job) {
 
 function settle() {
   if (state.running && !queue.length && active === 0) state.running = false;
+  saveState();
 }
 
 chrome.downloads.onChanged.addListener((delta) => {
@@ -110,10 +158,16 @@ chrome.downloads.onChanged.addListener((delta) => {
   if (delta.state.current === "complete") {
     pending.delete(delta.id);
     state.lastId = delta.id;
+    saveState();
     finish(job, true);
   } else if (delta.state.current === "interrupted") {
     pending.delete(delta.id);
-    chrome.downloads.erase({ id: delta.id });
+    try {
+      chrome.downloads.erase({ id: delta.id }, () => {
+        if (chrome.runtime.lastError) {}
+      });
+    } catch (_) {}
+    saveState();
     finish(job, false);
   }
 });
@@ -145,16 +199,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     active = 0;
     state.running = false;
     state.stopped = true;
+    saveState();
     reply({ ok: true });
   } else if (msg.type === "reveal") {
     if (state.lastId) chrome.downloads.show(state.lastId);
     else chrome.downloads.showDefaultFolder();
     reply({ ok: true });
   } else if (msg.type === "clear") {
-    if (!state.running) state = { ...EMPTY };
+    if (!state.running) {
+      state = { ...EMPTY };
+      saveState();
+    }
     reply({ ok: true });
   } else if (msg.type === "download") {
     generation++;
+    queue = [];
+    for (const id of pending.keys()) chrome.downloads.cancel(id);
+    pending.clear();
+    active = 0;
     const board = safeName(msg.boardName, "Untitled board");
     const root = `Pinterest/${board}`;
 
