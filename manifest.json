@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Unpin",
+  "version": "1.2.0",
+  "description": "Download every image on a Pinterest board, with a folder for each section.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Unpin: download this board",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "popup.css",
+        "popup.js",
+        "icons/*"
+      ],
+      "matches": [
+        "https://*/*"
+      ]
+    }
+  ]
+}
