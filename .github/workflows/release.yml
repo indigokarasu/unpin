@@ -1,13 +1,23 @@
 name: Release Extension
 
+# Every merge into main builds a zip of the extension. If manifest.json carries
+# a version that has never been released, that zip also becomes a GitHub
+# release tagged v<version>. Merges that don't touch the version still produce a
+# zip, kept as a build artifact, so there is always something to load unpacked.
 on:
   push:
-    tags:
-      - "v*"
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# A second merge while the first is still publishing would race for the tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-release:
@@ -15,20 +25,54 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Package Chrome Extension
         run: |
+          set -euo pipefail
           VERSION=$(node -e "console.log(require('./manifest.json').version)")
           ZIP_NAME="unpin-v${VERSION}.zip"
-          zip -r "${ZIP_NAME}" manifest.json background.js popup.html popup.js popup.css panel.js icons/ README.md
-          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          # Only what Chrome loads: the store listing and the render tools stay out.
+          zip -r "${ZIP_NAME}" manifest.json background.js panel.js popup.html popup.js popup.css icons/ README.md
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Check the zip is loadable
+        run: |
+          set -euo pipefail
+          unzip -q -o "${ZIP_NAME}" -d /tmp/unpin
+          node -e "
+            const m = require('/tmp/unpin/manifest.json');
+            const fs = require('fs');
+            if (m.version !== process.env.VERSION) throw new Error('version mismatch in packaged manifest');
+            const needed = [m.background.service_worker, ...Object.values(m.icons)];
+            for (const f of needed) {
+              if (!fs.existsSync('/tmp/unpin/' + f)) throw new Error('missing from zip: ' + f);
+            }
+            console.log('packaged', m.name, m.version, 'ok');
+          "
+
+      - name: Keep the zip as a build artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: ${{ env.ZIP_NAME }}
-          name: Release v${{ env.VERSION }}
-          generate_release_notes: true
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ env.ZIP_NAME }}
+          if-no-files-found: error
+
+      - name: Publish a release for a new version
+        if: github.event_name != 'pull_request'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG is already released. Bump \"version\" in manifest.json to cut a new one."
+            echo "The zip for this build is attached to the run as an artifact."
+            exit 0
+          fi
+          gh release create "$TAG" "${ZIP_NAME}" \
+            --title "Unpin $TAG" \
+            --generate-notes \
+            --target "${GITHUB_SHA}"
