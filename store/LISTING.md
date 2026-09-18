@@ -78,6 +78,16 @@ English (United States)
     Saving the images is what the extension is for. It writes them into a folder per
     section and skips ones it has already downloaded.
 
+**`storage`**
+
+    Unpin keeps the state of a download in chrome.storage.session: the queue of
+    images still to fetch, how many have finished, failed or were skipped, and which
+    section each belongs to. Chrome shuts an extension's background worker down
+    whenever it looks idle, which happens easily during a download of several hundred
+    images. Without this, a board would stop partway through and the panel would show
+    the wrong progress. Session storage is cleared when the browser closes and never
+    leaves the computer. Unpin stores nothing else, and nothing about the user.
+
 ## Data use disclosures
 
     Does this extension collect user data?  No.
@@ -88,6 +98,21 @@ credit or lending.
 
 There is a privacy policy in PRIVACY.md in the repository. If the form wants a URL, use
 GitHub's page for that file.
+
+## Are you using remote code?
+
+    No. I am not using remote code.
+
+Everything Unpin runs ships inside the package: background.js, panel.js, popup.js,
+popup.css, popup.html and the icons. There is no eval, no new Function, no
+importScripts, and no script or stylesheet loaded from a URL. popup.html references only
+files inside the extension.
+
+Unpin does make network requests, and none of them are code. It asks Pinterest's own web
+endpoints for the board's pins and gets JSON back, which it reads as data: image
+addresses and the text used to name files. It then hands those image addresses to
+Chrome's downloads API, so the pictures are written to disk and never executed. The
+panel's cover images are the board's own thumbnails, loaded as images.
 
 ## Images to upload
 
