@@ -88,6 +88,36 @@ English (United States)
     the wrong progress. Session storage is cleared when the browser closes and never
     leaves the computer. Unpin stores nothing else, and nothing about the user.
 
+## Instructions for reviewers
+
+    No account, no login and no setup. Unpin needs no credentials of any kind: Pinterest
+    serves public boards to signed-out visitors, and that is enough for everything the
+    extension does.
+
+    1. Install Unpin and pin its icon to the toolbar.
+    2. Open any public Pinterest board. A board with sections shows the most behaviour,
+       for example https://www.pinterest.com/jaredzimmerman/bespoke/ (197 pins across 6
+       sections). Any board URL of the shape pinterest.com/<user>/<board>/ works.
+    3. Click the Unpin icon. A panel opens over the page showing the board's name, its pin
+       count and a chip per section. Reading that panel is already the core feature
+       working: the extension has read the board.
+    4. Click Download board. The progress bar fills section by section. Stop ends it at
+       once.
+    5. The images are in your Downloads folder, under Pinterest/<board name>/, with a
+       subfolder per section and file names taken from each pin.
+
+    Two things that are meant to happen, in case they look like faults:
+
+    - Clicking the icon anywhere other than Pinterest gives a small popup saying to open a
+      Pinterest board. Chrome grants Unpin no access to other sites, so the panel cannot
+      open there.
+    - A large board takes a while, since every image is fetched at full resolution. The
+      panel can be closed while it runs; the downloads carry on.
+
+    Signing in is optional and only matters for boards a signed-out visitor cannot see,
+    such as your own secret boards. If you sign in with any Pinterest account, your own
+    boards work the same way.
+
 ## Data use disclosures
 
     Does this extension collect user data?  No.
