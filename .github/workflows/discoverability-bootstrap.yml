@@ -1,30 +1,23 @@
 name: Repository discoverability bootstrap
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
+    paths:
+      - .github/workflows/discoverability-bootstrap.yml
 permissions:
   contents: write
   issues: write
-
 jobs:
-  metadata:
+  discoverability:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
     steps:
-      - name: Repository description and topics
+      - name: Standard labels
         continue-on-error: true
         run: |
-          gh api --method PATCH "repos/$REPO" -f description="Chrome extension that downloads original-resolution Pinterest board images, organized by board and section."
-          gh api --method PUT "repos/$REPO/topics"             -H "Accept: application/vnd.github+json"             -F names[]=pinterest -F names[]=chrome-extension -F names[]=image-downloader -F names[]=browser-extension -F names[]=download
-
-      - name: Standard labels
-        run: |
-          upsert_label () {
-            local name="$1" color="$2" description="$3"
-            gh label create "$name" --repo "$REPO" --color "$color" --description "$description" --force
-          }
+          upsert_label () { gh label create "$1" --repo "$REPO" --color "$2" --description "$3" --force; }
           upsert_label "bug" "d73a4a" "Something is not working"
           upsert_label "enhancement" "a2eeef" "New feature or improvement"
           upsert_label "documentation" "0075ca" "Documentation improvements"
@@ -33,12 +26,12 @@ jobs:
           upsert_label "question" "d876e3" "Further information is requested"
           upsert_label "dependencies" "0366d6" "Dependency updates"
           upsert_label "security" "b60205" "Security-related work"
-
-      - name: Initial release
+      - name: Ensure release and tag
+        if: ${{ true }}
         run: |
           if ! gh release list --repo "$REPO" --limit 1 | grep -q .; then
-            if git ls-remote --tags "https://github.com/$REPO.git" | grep -q 'refs/tags/'; then
-              tag="$(git ls-remote --tags "https://github.com/$REPO.git" | sed -n 's#.*refs/tags/##p' | grep -v '\^{}' | sort -V | tail -1)"
+            tag="$(gh api "repos/$REPO/tags" --jq '.[0].name' 2>/dev/null || true)"
+            if [ -n "$tag" ]; then
               gh release create "$tag" --repo "$REPO" --title "$tag" --generate-notes
             else
               gh release create "v0.1.0" --repo "$REPO" --target "${{ github.sha }}" --title "v0.1.0" --generate-notes
